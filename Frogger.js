@@ -15,6 +15,11 @@ var BLUE = vec4(0.0, 0.0, 1.0, 1.0);
 var RED = vec4(1.0, 0.0, 0.0, 1.0);
 var GRAY = vec4(0.4, 0.4, 0.4, 1.0);
 
+var LEFT_KEY = 37;
+var UP_KEY = 38;
+var RIGHT_KEY = 39;
+var DOWN_KEY = 40;
+
 var movement = false;     // Do we rotate?
 var spinX = 0;
 var spinY = 0;
@@ -31,26 +36,30 @@ var mvLoc;
 var pLoc;
 var proj;
 
-var frogVertices = [
-    // front side:
-    vec3( -5,  45,  10 ), vec3( -5, 45,  0 ), vec3(  5, 45,  0 ),
-    vec3(  5, 45,  0 ), vec3(  5,  45,  10 ), vec3( -5,  45,  10 ),
-    // right side:
-    vec3(  5,  45, 10 ), vec3(  5, 45,  0 ), vec3(  5, 55, 0 ),
-    vec3(  5, 55, 10 ), vec3(  5,  55, 10 ), vec3(  5,  45,  10 ),
-    // bottom side:
-    vec3(  5, 45,  0 ), vec3( -5, 45,  0 ), vec3( -5, 55, 0 ),
-    vec3( -5, 55, 0 ), vec3(  5, 55, 0 ), vec3(  5, 45,  0 ),
-    // top side:
-    vec3(  5,  55, 10 ), vec3( -5,  55, 10 ), vec3( -5,  45,  10 ),
-    vec3( -5,  45,  10 ), vec3(  5,  45,  10 ), vec3(  5,  55, 10 ),
-    // back side:
-    vec3( -5, 55, 0 ), vec3( -5,  55, 10 ), vec3(  5,  55, 10 ),
-    vec3(  5,  55, 10 ), vec3(  5, 55, 0 ), vec3( -5, 55, 0 ),
-    // left side:
-    vec3( -5,  55, 10 ), vec3( -5, 55, 0 ), vec3( -5, 45,  0 ),
-    vec3( -5, 45,  0 ), vec3( -5,  45,  10 ), vec3( -5,  55, 10 )
-];
+var frogInfo = {
+  vertices:[
+      // front side:
+      vec3( -5,  45,  10 ), vec3( -5, 45,  0 ), vec3(  5, 45,  0 ),
+      vec3(  5, 45,  0 ), vec3(  5,  45,  10 ), vec3( -5,  45,  10 ),
+      // right side:
+      vec3(  5,  45, 10 ), vec3(  5, 45,  0 ), vec3(  5, 55, 0 ),
+      vec3(  5, 55, 10 ), vec3(  5,  55, 10 ), vec3(  5,  45,  10 ),
+      // bottom side:
+      vec3(  5, 45,  0 ), vec3( -5, 45,  0 ), vec3( -5, 55, 0 ),
+      vec3( -5, 55, 0 ), vec3(  5, 55, 0 ), vec3(  5, 45,  0 ),
+      // top side:
+      vec3(  5,  55, 10 ), vec3( -5,  55, 10 ), vec3( -5,  45,  10 ),
+      vec3( -5,  45,  10 ), vec3(  5,  45,  10 ), vec3(  5,  55, 10 ),
+      // back side:
+      vec3( -5, 55, 0 ), vec3( -5,  55, 10 ), vec3(  5,  55, 10 ),
+      vec3(  5,  55, 10 ), vec3(  5, 55, 0 ), vec3( -5, 55, 0 ),
+      // left side:
+      vec3( -5,  55, 10 ), vec3( -5, 55, 0 ), vec3( -5, 45,  0 ),
+      vec3( -5, 45,  0 ), vec3( -5,  45,  10 ), vec3( -5,  55, 10 ) ],
+
+    xPos: 0,
+    yPos: 0
+};
 
 var riverVertices = [
     vec3( 55, -15, 0.0 ), vec3( 55, -55, 0.0 ),
@@ -86,7 +95,7 @@ window.onload = function init()
 
     frogBuffer = gl.createBuffer();
     gl.bindBuffer( gl.ARRAY_BUFFER, frogBuffer );
-    gl.bufferData( gl.ARRAY_BUFFER, flatten(frogVertices), gl.STATIC_DRAW );
+    gl.bufferData( gl.ARRAY_BUFFER, flatten(frogInfo.vertices), gl.STATIC_DRAW );
 
     roadBuffer = gl.createBuffer();
     gl.bindBuffer( gl.ARRAY_BUFFER, roadBuffer );
@@ -105,26 +114,41 @@ window.onload = function init()
     proj = perspective( 50.0, 1.0, 1.0, 500.0 );
     gl.uniformMatrix4fv(pLoc, false, flatten(proj));
 
-      //event listeners for mouse
-      canvas.addEventListener("mousedown", function(e){
-          movement = true;
-          origX = e.offsetX;
-          origY = e.offsetY;
-          e.preventDefault();         // Disable drag and drop
-      } );
+    //event listeners for mouse
+    canvas.addEventListener("mousedown", function(e){
+        movement = true;
+        origX = e.offsetX;
+        origY = e.offsetY;
+        e.preventDefault();         // Disable drag and drop
+    } );
 
-      canvas.addEventListener("mouseup", function(e){
-          movement = false;
-      } );
+    canvas.addEventListener("mouseup", function(e){
+        movement = false;
+    } );
 
-      canvas.addEventListener("mousemove", function(e){
-          if(movement) {
-      	    spinY = ( spinY + (e.offsetX - origX) ) % 360;
-              spinX = ( spinX + (e.offsetY - origY) ) % 360;
-              origX = e.offsetX;
-              origY = e.offsetY;
-          }
-      } );
+    canvas.addEventListener("mousemove", function(e){
+        if(movement) {
+    	    spinY = ( spinY + (e.offsetX - origX) ) % 360;
+            spinX = ( spinX + (e.offsetY - origY) ) % 360;
+            origX = e.offsetX;
+            origY = e.offsetY;
+        }
+    } );
+
+    window.addEventListener("keydown", function(e){
+      if(e.keyCode === LEFT_KEY){
+        frogInfo.xPos++;
+      }
+      else if(e.keyCode === RIGHT_KEY){
+        frogInfo.xPos--;
+      }
+      else if(e.keyCode === UP_KEY){
+        frogInfo.yPos--;
+      }
+      else if(e.keyCode === DOWN_KEY){
+        frogInfo.yPos++;
+      }
+    });
 
     render();
 }
@@ -166,6 +190,8 @@ function drawFrog(mv) {
 
 function initMv1(mv) {
   var mv1 = mv;
+
+  mv1 = mult( mv1, translate( frogInfo.xPos*10, frogInfo.yPos*10, 0.0 ) );
   mv1 = mult( mv1, scalem( 0.9, 0.9, 0.9 ) );
   mv1 = mult( mv1, translate( 0.0, 6.0, 0.0 ) );
 
@@ -173,20 +199,17 @@ function initMv1(mv) {
 }
 
 function initMv() {
-
   var mv = mat4();
   mv = lookAt( vec3(0.0, 3.0, 2.0),
                vec3(0.0, 0.0, 0.0),
                vec3(0.0, 0.0, 1.0) );
 
- mv = mult( mv, rotateX(spinX) );
- mv = mult( mv, rotateY(spinY) ) ;
-
+  mv = mult( mv, rotateX(spinX) );
+  mv = mult( mv, rotateY(spinY) ) ;
 
   mv = mult( mv, scalem( 0.02 , 0.02 , 0.02 ) );
 
   return mv;
-
 }
 
 function render()
