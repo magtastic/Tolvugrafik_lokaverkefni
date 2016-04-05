@@ -8,17 +8,13 @@ var RED = vec4(1.0, 0.0, 0.0, 1.0);
 var GRAY = vec4(0.4, 0.4, 0.4, 1.0);
 var YELLOW = vec4(1.0, 1.0, 0.0, 1.0);
 var BROWN = vec4(0.8, 0.6, 0.4, 1.0);
+var WHITE = vec4(1.0, 1.0, 1.0, 1.0);
+var RANDOM = vec4(0.8, 0.7, 0.0, 1.0);
 
 var LEFT_KEY = 37;
 var UP_KEY = 38;
 var RIGHT_KEY = 39;
 var DOWN_KEY = 40;
-
-var movement = false;
-var spinX = 0;
-var spinY = 0;
-var origX;
-var origY;
 
 var riverBuffer;
 var roadBuffer;
@@ -30,97 +26,29 @@ var mvLoc;
 var pLoc;
 var proj;
 
+var flyInfo = {
+  generateFly: Math.random()*700,
+  midOrEnd: Math.random(),
+  isAlive: false,
+  liveTime: 0,
+  mv: mat4()
+};
+
 var logsInfo = [
-  {
-    vel: 0.5,
-    yPos: -70,
-    xPos: -50,
-    numObj: 4,
-    dist: -80,
-    size: 3,
-    mv: mat4()
-  },
-  {
-    vel: -0.6,
-    yPos: -80,
-    xPos: 50,
-    numObj: 4,
-    dist: 60,
-    size: 2,
-    mv: mat4()
-  },
-  {
-    vel: 0.2,
-    yPos: -90,
-    xPos: -50,
-    numObj: 4,
-    dist: -60,
-    size: 2,
-    mv: mat4()
-  },
-  {
-    vel: -1.5,
-    yPos: -100,
-    xPos: 50,
-    numObj: 4,
-    dist: 60,
-    size: 3,
-    mv: mat4()
-  },
-  {
-    vel: 0.1,
-    yPos: -110,
-    xPos: -50,
-    numObj: 4,
-    dist: -60,
-    size: 1,
-    mv: mat4()
-  }
+  makeLogLaneInfo(0.5,-70,-50,4,-80,3,mat4()),
+  makeLogLaneInfo(-0.6,-80,50,4,60,2,mat4()),
+  makeLogLaneInfo(0.2,-90,-50,4,-60,2,mat4()),
+  makeLogLaneInfo(-1.5,-100,50,4,60,3,mat4()),
+  makeLogLaneInfo(0.1,-110,-50,4,-60,1,mat4())
 ];
 
 var carsInfo = [
-  {
-    vel: 0.5,
-    yPos: -10,
-    xPos: -50,
-    numObj: 4,
-    dist: -40,
-    mv: mat4()
-  },
-  {
-    vel: -1,
-    yPos: -20,
-    xPos: 50,
-    numObj: 2,
-    dist: 60,
-    mv: mat4()
-  },
-  {
-    vel: 0.2,
-    yPos: -30,
-    xPos: -50,
-    numObj: 6,
-    dist: -30,
-    mv: mat4()
-  },
-  {
-    vel: -0.4,
-    yPos: -40,
-    xPos: 50,
-    numObj: 4,
-    dist: 50,
-    mv: mat4()
-  },
-  {
-    vel: 0.5,
-    yPos: -50,
-    xPos: -50,
-    numObj: 4,
-    dist: -40,
-    mv: mat4()
-  }
+  makeCarLaneInfo(0.5,-10,-50,4,-40,mat4()),
+  makeCarLaneInfo(-1,-20,50,2,60,mat4()),
+  makeCarLaneInfo(0.2,-30,-50,6,-30,mat4()),
+  makeCarLaneInfo(-0.4,-40,50,4,50,mat4()),
+  makeCarLaneInfo(0.5,-50,-50,4,-40,mat4())
 ];
-
 
 var frogInfo = {
   vertices:[
@@ -146,6 +74,7 @@ var frogInfo = {
     xPos: 0,
     yPos: 0,
     vel: 0,
+    lives: 10,
     mv: mat4()
 };
 
@@ -201,27 +130,6 @@ window.onload = function init()
     pLoc = gl.getUniformLocation( program, "projection" );
     proj = perspective( 50.0, 1.0, 1.0, 500.0 );
     gl.uniformMatrix4fv(pLoc, false, flatten(proj));
-
-    //event listeners for mouse
-    canvas.addEventListener("mousedown", function(e){
-        movement = true;
-        origX = e.offsetX;
-        origY = e.offsetY;
-        e.preventDefault();         // Disable drag and drop
-    } );
-
-    canvas.addEventListener("mouseup", function(e){
-        movement = false;
-    } );
-
-    canvas.addEventListener("mousemove", function(e){
-        if(movement) {
-    	    spinY = ( spinY + (e.offsetX - origX) ) % 360;
-            spinX = ( spinX + (e.offsetY - origY) ) % 360;
-            origX = e.offsetX;
-            origY = e.offsetY;
-        }
-    } );
 
     window.addEventListener("keydown", function(e){
       if(e.keyCode === LEFT_KEY){
@@ -285,14 +193,23 @@ function initMv1() {
 
 }
 
+function makeCarLaneInfo(vel,yPos,xPos,numObj,dist,mv){
+  var result = {
+    vel: vel,
+    yPos: yPos,
+    xPos: xPos,
+    numObj: numObj,
+    dist: dist,
+    mv: mv
+  };
+  return result;
+}
+
 function initMv() {
   mv = mat4();
   mv = lookAt( vec3((frogInfo.xPos*0.02), (frogInfo.yPos*0.02)+2, 1.0),
                vec3((frogInfo.xPos*0.02), frogInfo.yPos*0.02, 0.0),
                vec3(0.0, 0.0, 1.0) );
-
-  mv = mult( mv, rotateX(spinX) );
-  mv = mult( mv, rotateY(spinY) ) ;
 
   mv = mult( mv, scalem( 0.02 , 0.02 , 0.02 ) );
 }
@@ -315,6 +232,14 @@ function drawCarLane( lane ) {
 function drawCar( lane, i ){
 
   lane.mv = mult( lane.mv, translate( lane.dist * i , 0, 0 ) );
+
+  lane.mv = mult( lane.mv, scalem(1,1,0.5));
+
+  gl.uniformMatrix4fv(mvLoc, false, flatten(lane.mv));
+  gl.drawArrays( gl.TRIANGLES, 0, 36 );
+
+  lane.mv = mult( lane.mv, translate( 0.0,0.0,3 ) );
+  lane.mv = mult( lane.mv, scalem( 0.8,1,1 ));
 
   gl.uniformMatrix4fv(mvLoc, false, flatten(lane.mv));
   gl.drawArrays( gl.TRIANGLES, 0, 36 );
@@ -348,6 +273,19 @@ function drawLog( lane, i ){
     lane.mv = mult( lane.mv, translate( -10 , 0, 0 ) );
   }
 
+}
+
+function makeLogLaneInfo(vel,yPos,xPos,numObj,dist,size,mv){
+  var result = {
+    vel: vel,
+    yPos: yPos,
+    xPos: xPos,
+    numObj: numObj,
+    dist: dist,
+    size: size,
+    mv: mv
+  };
+  return result;
 }
 
 function updateLogLane(lane){
@@ -433,6 +371,7 @@ function collisionHandle(car, i){
     frogInfo.vel = 0;
     frogInfo.xPos = 0;
     frogInfo.yPos = 0;
+    frogInfo.lives--;
   }else{
     console.log("ssaa");
     frogInfo.vel = logsInfo[i].vel;
@@ -445,6 +384,53 @@ function updateFrog(){
     frogInfo.vel = 0;
   }
     frogInfo.xPos += frogInfo.vel;
+}
+
+function drawFly(){
+  gl.uniform4fv( colorLoc, RANDOM );
+
+  gl.bindBuffer( gl.ARRAY_BUFFER, frogBuffer );
+  gl.vertexAttribPointer( vPosition, 3, gl.FLOAT, false, 0, 0 );
+
+  flyInfo.mv = mv;
+
+  flyInfo.mv = mult( flyInfo.mv, translate( 0 , -60, 0 ) );
+  if(flyInfo.midOrEnd < 0.5){
+    flyInfo.mv = mult( flyInfo.mv, translate( 0 , -60, 0 ) );
+    console.log('end');
+  }
+
+  flyInfo.mv = mult( flyInfo.mv, scalem(1,1,0.5));
+
+  gl.uniformMatrix4fv(mvLoc, false, flatten(flyInfo.mv));
+  gl.drawArrays( gl.TRIANGLES, 0, 36 );
+}
+
+function updateFly() {
+
+  if(flyInfo.isAlive){
+
+    flyInfo.liveTime--;
+
+    if(flyInfo.liveTime < 0){
+      flyInfo.isAlive = false;
+      flyInfo.generateFly = Math.random()*700;
+      flyInfo.midOrEnd = Math.random();
+    }
+
+    drawFly();
+
+  }else{
+
+    flyInfo.generateFly--;
+
+    if(flyInfo.generateFly < 0){
+      flyInfo.isAlive = true;
+      flyInfo.liveTime = Math.random()*100;
+    }
+
+  }
+
 }
 
 function render()
@@ -466,6 +452,8 @@ function render()
     collisionDetection();
 
     updateFrog();
+
+    updateFly();
 
     requestAnimFrame( render );
 }
