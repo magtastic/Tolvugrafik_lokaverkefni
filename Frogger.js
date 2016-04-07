@@ -3,6 +3,10 @@ var gl;
 
 var mv;
 
+var scoreBoard;
+var liveBoard;
+var isDead;
+
 var BLUE = vec4(0.0, 0.0, 1.0, 1.0);
 var RED = vec4(1.0, 0.0, 0.0, 1.0);
 var GRAY = vec4(0.4, 0.4, 0.4, 1.0);
@@ -15,6 +19,8 @@ var LEFT_KEY = 37;
 var UP_KEY = 38;
 var RIGHT_KEY = 39;
 var DOWN_KEY = 40;
+var SPACE_KEY = 32;
+var RESTART_KEY = 82;
 
 var riverBuffer;
 var roadBuffer;
@@ -27,15 +33,16 @@ var pLoc;
 var proj;
 
 var flyInfo = {
-  generateFly: Math.random()*700,
+  generateFly: Math.random()*250+250,
   midOrEnd: Math.random(),
+  xPos: Math.floor(Math.random()*11-5)*10,
   isAlive: false,
   liveTime: 0,
   mv: mat4()
 };
 
 var logsInfo = [
-  makeLogLaneInfo(0.5,-70,-50,4,-80,3,mat4()),
+  makeLogLaneInfo(0.5,-70,0,3,-80,3,mat4()),
   makeLogLaneInfo(-0.6,-80,50,4,60,2,mat4()),
   makeLogLaneInfo(0.2,-90,-50,4,-60,2,mat4()),
   makeLogLaneInfo(-1.5,-100,50,4,60,3,mat4()),
@@ -75,17 +82,19 @@ var frogInfo = {
     yPos: 0,
     vel: 0,
     lives: 10,
+    isAlive: true,
+    currPoints: 5000,
     mv: mat4()
 };
 
 var riverVertices = [
-    vec3( 55, -15, 0.0 ), vec3( 55, -65, 0.0 ),
-    vec3( -55, -15, 0.0 ), vec3( -55, -65, 0.0 )
+    vec3( 550, -15, 0.0 ), vec3( 550, -65, 0.0 ),
+    vec3( -550, -15, 0.0 ), vec3( -550, -65, 0.0 )
 ];
 
 var roadVertices = [
-    vec3( 55, 45, 0.0 ), vec3( 55, -5, 0.0 ),
-    vec3( -55, 45, 0.0 ), vec3( -55, -5, 0.0 )
+    vec3( 550, 45, 0.0 ), vec3( 550, -5, 0.0 ),
+    vec3( -550, 45, 0.0 ), vec3( -550, -5, 0.0 )
 ];
 
 window.onload = function init()
@@ -131,19 +140,49 @@ window.onload = function init()
     proj = perspective( 50.0, 1.0, 1.0, 500.0 );
     gl.uniformMatrix4fv(pLoc, false, flatten(proj));
 
+    scoreBoard = document.getElementById('points');
+    liveBoard = document.getElementById('livesLeft');
+    isDead = document.getElementById('SpaceBar');
+
     window.addEventListener("keydown", function(e){
-      if(e.keyCode === LEFT_KEY){
-        frogInfo.xPos += 10;
+      if(frogInfo.lives != 0){
+        if(frogInfo.isAlive){
+            if(e.keyCode === LEFT_KEY){
+              if(frogInfo.xPos >= 50){
+                return;
+              }
+              frogInfo.xPos += 10;
+            }
+            else if(e.keyCode === RIGHT_KEY){
+              if(frogInfo.xPos <= -50){
+                return;
+              }
+              frogInfo.xPos -= 10;
+            }
+            else if(e.keyCode === UP_KEY){
+              if(frogInfo.yPos <= -120){
+                return;
+              }
+              frogInfo.yPos -= 10;
+            }
+            else if(e.keyCode === DOWN_KEY){
+              if(frogInfo.yPos >= 0){
+                return;
+              }
+              frogInfo.yPos += 10;
+            }
+        }
+        else if (!frogInfo.isAlive && e.keyCode === SPACE_KEY){
+          frogInfo.isAlive = true;
+        }
+      }else{
+        if(e.keyCode === RESTART_KEY){
+          frogInfo.lives = 10;
+          frogInfo.currPoints = 5000;
+        }
       }
-      else if(e.keyCode === RIGHT_KEY){
-        frogInfo.xPos -= 10;
-      }
-      else if(e.keyCode === UP_KEY){
-        frogInfo.yPos -= 10;
-      }
-      else if(e.keyCode === DOWN_KEY){
-        frogInfo.yPos += 10;
-      }
+
+
     });
 
     render();
@@ -247,7 +286,6 @@ function drawCar( lane, i ){
 }
 
 function drawLogLane( lane ) {
-
     // set color to blue
     gl.uniform4fv( colorLoc, BROWN );
 
@@ -335,6 +373,7 @@ function collisionDetection(){
     return;
   }
 
+
   var drasl = currLane.numObj;
 
   for( var i = 0; i < currLane.numObj; i++ ){
@@ -353,7 +392,6 @@ function collisionDetection(){
       || frogInfo.xPos < currLane.xPos - (i*-currLane.dist)
       && frogInfo.xPos > currLane.xPos - (currLane.size*10 +
                                          (i*-currLane.dist))){
-        console.log("J'aaa'a'ass");
         collisionHandle(false, numLog);
         drasl--;
         break;
@@ -366,14 +404,35 @@ function collisionDetection(){
 
 }
 
+function flyCollision(){
+  if((frogInfo.yPos === -60 && flyInfo.midOrEnd >= 0.5)
+    ||
+     (frogInfo.yPos === -110 && flyInfo.midOrEnd < 0.5)){
+    if(((frogInfo.xPos-10 < flyInfo.xPos
+      && frogInfo.xPos-10 > flyInfo.xPos - 10)
+     || (frogInfo.xPos < flyInfo.xPos
+      && frogInfo.xPos > flyInfo.xPos - 10) ||
+         frogInfo.xPos === flyInfo.xPos)
+      && flyInfo.isAlive ){
+      flyCollisionHandle();
+    }
+  }
+
+}
+
+function flyCollisionHandle(){
+  frogInfo.currPoints *= frogInfo.currPoints;
+}
+
 function collisionHandle(car, i){
   if(car){
     frogInfo.vel = 0;
     frogInfo.xPos = 0;
     frogInfo.yPos = 0;
+    frogInfo.isAlive = false;
     frogInfo.lives--;
+    frogInfo.currPoints -= 500;
   }else{
-    console.log("ssaa");
     frogInfo.vel = logsInfo[i].vel;
   }
 }
@@ -384,6 +443,26 @@ function updateFrog(){
     frogInfo.vel = 0;
   }
     frogInfo.xPos += frogInfo.vel;
+
+    if(frogInfo.currPoints <= 0){
+      return;
+    }
+    frogInfo.currPoints--;
+
+}
+
+function updateBoards(){
+  scoreBoard.innerHTML = 'Socre: '+frogInfo.currPoints;
+  liveBoard.innerHTML = 'Lives: '+frogInfo.lives;
+  if(frogInfo.lives === 0){
+    isDead.innerHTML = 'Press R to restart';
+  }
+  else if(!frogInfo.isAlive){
+    isDead.innerHTML = 'Press the Space bar to continue...';
+  }
+  else{
+    isDead.innerHTML = '';
+  }
 }
 
 function drawFly(){
@@ -394,7 +473,7 @@ function drawFly(){
 
   flyInfo.mv = mv;
 
-  flyInfo.mv = mult( flyInfo.mv, translate( 0 , -60, 0 ) );
+  flyInfo.mv = mult( flyInfo.mv, translate( flyInfo.xPos , -60, 0 ) );
   if(flyInfo.midOrEnd < 0.5){
     flyInfo.mv = mult( flyInfo.mv, translate( 0 , -60, 0 ) );
     console.log('end');
@@ -414,11 +493,10 @@ function updateFly() {
 
     if(flyInfo.liveTime < 0){
       flyInfo.isAlive = false;
-      flyInfo.generateFly = Math.random()*700;
+      flyInfo.generateFly = Math.random()*250 + 250;
       flyInfo.midOrEnd = Math.random();
+      flyInfo.xPos = Math.floor(Math.random()*11-5)*10;
     }
-
-    drawFly();
 
   }else{
 
@@ -426,7 +504,7 @@ function updateFly() {
 
     if(flyInfo.generateFly < 0){
       flyInfo.isAlive = true;
-      flyInfo.liveTime = Math.random()*100;
+      flyInfo.liveTime = Math.random()*100 + 50;
     }
 
   }
@@ -443,6 +521,10 @@ function render()
     drawRiver();
     drawFrog();
 
+    if(flyInfo.isAlive){
+      drawFly();
+    }
+
     for(var i = 0; i < 5; i++){
       drawCarLane(carsInfo[i]);
       drawLogLane(logsInfo[i]);
@@ -450,10 +532,14 @@ function render()
       updateCarLane(logsInfo[i]);
     }
     collisionDetection();
+    flyCollision();
 
     updateFrog();
 
     updateFly();
 
+    updateBoards();
+
     requestAnimFrame( render );
+
 }
